@@ -32,14 +32,9 @@ planner_chain = None
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global agent_executor, planner_chain
-    print("[AgentServer] Initializing WEEING Agent...")
     agent_executor = create_weeing_agent()
-    print(f"[AgentServer] Agent initialized with {len(ALL_TOOLS)} tools.")
-    print("[AgentServer] Initializing WEEING Planner...")
     planner_chain = create_weeing_planner()
-    print("[AgentServer] Planner initialized.")
     yield
-    print("[AgentServer] Shutting down...")
 
 
 app = FastAPI(
