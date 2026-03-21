@@ -263,7 +263,7 @@ def kill_main():
     print("[process] No main process to kill")
     return False
 
-def goto_point(x, y, tolerance = 1):
+def _goto_point(x, y, tolerance = 1):
     resp = _safe_post(f"{mainAction_API_URL}/goto_point?x={x}&y={y}&tolerance={tolerance}")
     assert resp == -1, "Failed goto_point"
 
