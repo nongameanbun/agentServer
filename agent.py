@@ -1,10 +1,5 @@
-# ─── 현재 시각 반환 함수 ───
 import datetime
-
-def get_current_hour_minute() -> tuple[int, int]:
-    """현재 시스템 시각의 (시, 분)을 반환합니다."""
-    now = datetime.datetime.now()
-    return now.hour, now.minute
+from utils import get_current_hour_minute, _load_docs, _stringify_content, _history_to_messages
 """
 WEEING Agent — LangGraph 기반 실행/계획 오케스트레이션
 
@@ -31,34 +26,7 @@ dotenv.load_dotenv(os.path.join(os.path.dirname(__file__), ".env"))
 
 # ─── 동적 규칙 로드 ───
 
-def _load_docs() -> str:
-    """Docs/*.txt 파일들의 내용을 읽어 하나의 문자열로 합칩니다.
-    shortcuts.txt 파일을 우선적으로 로드하여 최상단에 배치합니다.
-    """
-    docs_dir = os.path.join(os.path.dirname(__file__), "Docs")
-    if not os.path.exists(docs_dir):
-        return ""
-    
-    combined_docs = []
-    filenames = sorted(os.listdir(docs_dir))
-    
-    # shortcuts.txt 우선 처리
-    if "shortcuts.txt" in filenames:
-        filenames.remove("shortcuts.txt")
-        filenames.insert(0, "shortcuts.txt")
-
-    for filename in filenames:
-        if filename.endswith(".txt"):
-            file_path = os.path.join(docs_dir, filename)
-            try:
-                with open(file_path, "r", encoding="utf-8") as f:
-                    content = f.read()
-                    header = "### [필독/최우선] " if filename == "shortcuts.txt" else "### "
-                    combined_docs.append(f"{header}문서: {filename}\n{content}\n")
-            except Exception as e:
-                combined_docs.append(f"### 문서: {filename}\n[오류 발생: {e}]\n")
-    
-    return "\n".join(combined_docs)
+# BASE_TOOL_RULES was here
 
 BASE_TOOL_RULES = """\
 ## 핵심 규칙
@@ -201,47 +169,7 @@ def _get_llm(model_name: str = "gpt-4o-mini", temperature: float = 0.0):
     )
 
 
-def _stringify_content(content: Any) -> str:
-    if isinstance(content, str):
-        return content
-    if isinstance(content, list):
-        parts = []
-        for item in content:
-            if isinstance(item, dict):
-                text = item.get("text")
-                if text:
-                    parts.append(str(text))
-                else:
-                    parts.append(str(item))
-            else:
-                parts.append(str(item))
-        return "\n".join(parts)
-    return str(content)
-
-
-def _history_to_messages(chat_history: list[Any] | None) -> list[Any]:
-    messages: list[Any] = []
-    if not chat_history:
-        return messages
-
-    for msg in chat_history:
-        if isinstance(msg, tuple) and len(msg) >= 2:
-            role, content = msg[0], msg[1]
-            if role == "human":
-                messages.append(HumanMessage(content=content))
-            elif role == "ai":
-                messages.append(AIMessage(content=content))
-            continue
-
-        if isinstance(msg, dict):
-            role = msg.get("role", "user")
-            content = msg.get("content", "")
-            if role in ("user", "human"):
-                messages.append(HumanMessage(content=content))
-            elif role in ("assistant", "ai"):
-                messages.append(AIMessage(content=content))
-
-    return messages
+# Utility functions moved to utils.py
 
 
 def _normalize_plan(plan: dict[str, Any]) -> dict[str, Any]:

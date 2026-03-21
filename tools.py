@@ -1,5 +1,5 @@
 # ─── 시간 정보 Tool ───
-from agent import get_current_hour_minute as _get_current_hour_minute
+from utils import get_current_hour_minute as _get_current_hour_minute
 from langchain_core.tools import tool
 
 @tool
@@ -17,37 +17,39 @@ gateway.py의 모든 함수를 LangChain Tool로 래핑하여,
 import os
 import dotenv
 import requests
-from typing import Optional
+import psutil
+from typing import Optional, List
 from langchain_core.tools import tool
 
-dotenv.load_dotenv(os.path.join(os.path.dirname(__file__), "..", ".env"))
+dotenv.load_dotenv(os.path.join(os.path.dirname(__file__), ".env"))
 
 # ─── MSA 서비스 URL 생성 ───
 
-inputHandler_URL   = f"http://127.0.0.1:{os.getenv('inputHandler_API_PORT')}"
-statusChecker_URL  = f"http://127.0.0.1:{os.getenv('statusChecker_API_PORT')}"
-alarmHandler_URL   = f"http://127.0.0.1:{os.getenv('alarmHandler_API_PORT')}"
-intrAction_URL     = f"http://127.0.0.1:{os.getenv('intrAction_API_PORT')}"
-mainAction_URL     = f"http://127.0.0.1:{os.getenv('mainAction_API_PORT')}"
-subAction_URL      = f"http://127.0.0.1:{os.getenv('subaction_API_PORT')}"
-streaming_URL      = f"http://127.0.0.1:{os.getenv('streaning_API_PORT')}"
-objectDetector_URL = f"http://127.0.0.1:{os.getenv('objectDetector_API_PORT')}"
-runeSolver_URL     = f"http://127.0.0.1:{os.getenv('runeSolver_API_PORT')}"
+inputHandler_URL   = f"http://127.0.0.1:{int(os.getenv('inputHandler_API_PORT'))}"
+statusChecker_URL  = f"http://127.0.0.1:{int(os.getenv('statusChecker_API_PORT'))}"
+alarmHandler_URL   = f"http://127.0.0.1:{int(os.getenv('alarmHandler_API_PORT'))}"
+intrAction_URL     = f"http://127.0.0.1:{int(os.getenv('intrAction_API_PORT'))}"
+mainAction_URL     = f"http://127.0.0.1:{int(os.getenv('mainAction_API_PORT'))}"
+subAction_URL      = f"http://127.0.0.1:{int(os.getenv('subaction_API_PORT'))}"
+streaming_URL      = f"http://127.0.0.1:{int(os.getenv('streaning_API_PORT'))}"
+objectDetector_URL = f"http://127.0.0.1:{int(os.getenv('objectDetector_API_PORT'))}"
+runeSolver_URL     = f"http://127.0.0.1:{int(os.getenv('runeSolver_API_PORT'))}"
+agentServer_URL    = f"http://127.0.0.1:{int(os.getenv('agentServer_API_PORT'))}"
 
 
 # ─── HTTP 헬퍼 ───
 
 def _post(url: str, timeout: int = 10) -> dict:
     try:
-        r = requests.post(url, timeout=timeout)
-        return r.json()
+        r = requests.post(url, timeout=timeout).json()
+        return r.get('resp', r)
     except Exception as e:
         return {"error": str(e)}
 
 def _get(url: str, timeout: int = 10) -> dict:
     try:
-        r = requests.get(url, timeout=timeout)
-        return r.json()
+        r = requests.get(url, timeout=timeout).json()
+        return r.get('resp', r)
     except Exception as e:
         return {"error": str(e)}
 
@@ -132,9 +134,12 @@ def mouse_click(click_mode: str, delay_ms: int, x: Optional[int] = None, y: Opti
 # ══════════════════════════════════════════════
 
 @tool
-def get_game_status() -> str:
-    """현재 게임 상태 스냅샷을 조회합니다. HP, MP, EXP 등의 정보를 포함합니다."""
-    return str(_get(f"{statusChecker_URL}/status/get"))
+def get_game_status(mode: Optional[str] = None) -> str:
+    """현재 게임 상태 스냅샷을 조회합니다. HP, MP, EXP 등의 정보를 포함합니다. mode(예: 'HP', 'MP')를 지정하면 해당 값만 반환합니다."""
+    resp = _get(f"{statusChecker_URL}/status/get")
+    if mode and isinstance(resp, dict):
+        return str(resp.get(mode, 0.0))
+    return str(resp)
 
 @tool
 def clear_game_status() -> str:
@@ -232,9 +237,54 @@ def pause_weeing() -> str:
     return str(_post(f"{mainAction_URL}/weeing/pause"))
 
 @tool
-def get_main_process_pid() -> str:
-    """실행 중인 위잉 프로세스의 PID를 조회합니다."""
-    return str(_get(f"{mainAction_URL}/pid"))
+def get_running_build() -> str:
+    """현재 진행 중인(또는 마지막으로 실행된) 빌드 정보를 조회합니다."""
+    return str(_get(f"{mainAction_URL}/weeing/running_build"))
+
+@tool
+def suspend_main_process() -> str:
+    """메인 위잉 프로세스를 일시 중지(suspend)합니다. (OS 레벨의 작업 중단)"""
+    try:
+        pid_resp = _get(f"{mainAction_URL}/pid")
+        pid = int(pid_resp) if isinstance(pid_resp, (int, float, str)) and int(pid_resp) > 0 else -1
+        if pid <= 0: return "No main process found."
+        proc = psutil.Process(pid)
+        proc.suspend()
+        return f"Suspended PID {pid}"
+    except Exception as e:
+        return f"Failed to suspend: {e}"
+
+@tool
+def resume_main_process() -> str:
+    """일시 중지된 메인 위잉 프로세스를 다시 재개(resume)합니다."""
+    try:
+        pid_resp = _get(f"{mainAction_URL}/pid")
+        pid = int(pid_resp) if isinstance(pid_resp, (int, float, str)) and int(pid_resp) > 0 else -1
+        if pid <= 0: return "No main process found."
+        proc = psutil.Process(pid)
+        proc.resume()
+        return f"Resumed PID {pid}"
+    except Exception as e:
+        return f"Failed to resume: {e}"
+
+@tool
+def kill_main_process() -> str:
+    """메인 위잉 프로세스를 강제 종료(kill)합니다."""
+    try:
+        pid_resp = _get(f"{mainAction_URL}/pid")
+        pid = int(pid_resp) if isinstance(pid_resp, (int, float, str)) and int(pid_resp) > 0 else -1
+        if pid <= 0: return "No main process found."
+        proc = psutil.Process(pid)
+        proc.kill()
+        _post(f"{mainAction_URL}/weeing/stop")
+        return f"Killed PID {pid}"
+    except Exception as e:
+        return f"Failed to kill: {e}"
+
+@tool
+def goto_point(x: int, y: int, tolerance: int = 1) -> str:
+    """캐릭터를 특정 맵 좌표 (x, y)로 이동시킵니다. tolerance는 허용 오차 범위입니다."""
+    return str(_post(f"{mainAction_URL}/goto_point?x={x}&y={y}&tolerance={tolerance}"))
 
 @tool
 def wait_weeing_process(check_interval_sec: int = 60) -> str:
@@ -352,6 +402,28 @@ def get_streamer_status() -> str:
 # ══════════════════════════════════════════════
 
 @tool
+def stop_agent_jobs() -> str:
+    """agentServer에서 실행 중인 모든 백그라운드 작업을 중단합니다."""
+    try:
+        jobs = _get(f"{agentServer_URL}/chat/background/jobs")
+        if not jobs or not isinstance(jobs, list):
+            return "No running jobs found."
+
+        results = []
+        for job in jobs:
+            if job.get("status") == "running":
+                job_id = job.get("job_id")
+                try:
+                    requests.delete(f"{agentServer_URL}/chat/background/stop/{job_id}", timeout=5)
+                    results.append(f"Stopped job {job_id}")
+                except Exception as e:
+                    results.append(f"Failed to stop job {job_id}: {e}")
+        return "\n".join(results) if results else "No jobs were running."
+    except Exception as e:
+        return f"Error stopping jobs: {e}"
+
+
+@tool
 def reset_all_states() -> str:
     """모든 외부 서비스 상태를 초기화합니다. capture off, 키 해제, 입력 off, 상태 클리어 등을 일괄 수행합니다."""
     results = []
@@ -389,37 +461,50 @@ def read_documentation(doc_name: str) -> str:
 
 ALL_TOOLS = [
     get_current_hour_minute_tool,
+
     # Input
     input_on, input_off,
     press_key, release_key, release_all_keys,
     press_key_with_delay, press_two_keys, add_delay, wait_time,
+
     # Mouse
     mouse_move, mouse_relative_move, mouse_click,
+
     # Status
     get_game_status, clear_game_status,
     check_rune_status, clear_rune_status,
     check_my_position,
     get_exp_cycle, set_exp_cycle,
     capture_on, capture_off,
+
     # Alarm
     send_alarm_message,
+
     # Interrupt
     add_interrupt, continue_main_process,
     get_interrupt_status, clear_interrupt,
+
     # Weeing
     get_build_list, start_weeing, pause_weeing,
-    get_main_process_pid, wait_weeing_process,
+    get_running_build, suspend_main_process, resume_main_process, kill_main_process,
+    goto_point, wait_weeing_process,
+
     # SubAction
     game_logout, game_login, get_macro_accounts,
     type_text, toggle_input_mode, register_fcm_token,
+
     # ObjectDetector
     find_object_on_screen, detect_with_yolo, find_in_screen,
+
     # RuneSolver
     awake_rune_solver_model, solve_rune,
+
     # Streaming
     start_streamer, stop_streamer, get_streamer_status,
+
     # Documentation
     read_documentation,
+    
     # System
-    reset_all_states,
+    stop_agent_jobs, reset_all_states,
 ]
