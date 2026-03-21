@@ -132,7 +132,6 @@ def check_pos() -> List[tuple[int, int]] | None:
 
 def get_exp_cycle() -> int:
     res = _safe_get(f"{statusChecker_API_URL}/cycle/get")
-    print(res)
     return res if res != None else -1
 
 def set_exp_cycle(cycle: int) -> None:
