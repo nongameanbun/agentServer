@@ -121,14 +121,16 @@ def get_status(mode : str | None = None) -> float | dict:
 def clear_status() -> None:
     _safe_post(f"{statusChecker_API_URL}/status/clear")
 
-def check_rune() -> List[tuple[int, int]] | None:
-    return _safe_get(f"{statusChecker_API_URL}/info/rune")
+def check_rune() -> List[tuple[int, int]]:
+    res = _safe_get(f"{statusChecker_API_URL}/info/rune")
+    return res if res else [1050, 1050]
 
 def clear_rune() -> None:
     _safe_post(f"{statusChecker_API_URL}/info/rune_clear")
 
-def check_pos() -> List[tuple[int, int]] | None:
-    return _safe_get(f"{statusChecker_API_URL}/info/mypos")
+def check_pos() -> List[tuple[int, int]]:
+    res = _safe_get(f"{statusChecker_API_URL}/info/mypos") 
+    return res if res else [1050, 1050]
 
 def get_exp_cycle() -> int:
     res = _safe_get(f"{statusChecker_API_URL}/cycle/get")
